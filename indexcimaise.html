@@ -1,0 +1,1237 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1c2320">
+<meta name="description" content="Trie ta galerie de photos, une image à la fois : garde, jette, encadre tes préférées.">
+<title>Cimaise — trie ta galerie</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%231c2320'/%3E%3Crect x='14' y='12' width='36' height='40' fill='none' stroke='%23d0a960' stroke-width='5'/%3E%3Cpath d='M32 24v16M24 32h16' stroke='%23f4efe6' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>
+@property --a1 { syntax: '<color>'; inherits: true; initial-value: #1c2320; }
+@property --a2 { syntax: '<color>'; inherits: true; initial-value: #3d4a3c; }
+
+:root {
+  --ink: #f4efe6;
+  --ink-2: rgba(244, 239, 230, .68);
+  --ink-3: rgba(244, 239, 230, .42);
+  --line: rgba(244, 239, 230, .16);
+  --veil: rgba(10, 9, 8, .32);
+  --brass: #d0a960;
+  --keep: #9fd0ab;
+  --drop: #ee9a86;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", "Noto Serif", Georgia, serif;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  transition: --a1 1s ease, --a2 1s ease;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; }
+body {
+  font-family: var(--sans);
+  color: var(--ink);
+  background-color: var(--a1);
+  background-image:
+    radial-gradient(130% 75% at 50% -5%, var(--a2) 0%, transparent 72%),
+    linear-gradient(var(--a1), color-mix(in oklab, var(--a1) 62%, black));
+  background-attachment: fixed;
+  overscroll-behavior: none;
+  -webkit-font-smoothing: antialiased;
+}
+body::before {
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: .09; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; touch-action: manipulation; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
+h1, h2, p { margin: 0; }
+
+.screen {
+  position: relative; z-index: 1; min-height: 100dvh; display: flex; flex-direction: column;
+  padding: max(16px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
+  max-width: 640px; margin: 0 auto;
+}
+
+/* ---------- Cadres ---------- */
+.frame { display: block; padding: 7px; background: linear-gradient(135deg, #3a2f25, #1d1712 45%, #33291f); box-shadow: 0 1px 0 rgba(255,255,255,.14) inset, 0 22px 44px -14px rgba(0,0,0,.7), 0 3px 8px rgba(0,0,0,.35); }
+.frame .mat { display: block; height: 100%; padding: 10px; background: #f2ebdc; box-shadow: 0 0 0 1px rgba(0,0,0,.28) inset, 0 2px 5px rgba(0,0,0,.28) inset; }
+.frame img { display: block; width: 100%; height: 100%; object-fit: cover; box-shadow: 0 0 0 1px rgba(0,0,0,.25); user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; pointer-events: none; }
+.f-or { background: linear-gradient(135deg, #e6c987, #a67c35 38%, #f0d79b 62%, #8f6a2c); }
+.f-noyer { background: linear-gradient(135deg, #7a4f31, #4b2d1a 50%, #6d452a); }
+.f-blanc { background: linear-gradient(135deg, #fbf8f1, #d9d2c3); }
+.f-blanc .mat { background: #fffdf8; }
+
+/* ---------- Accueil ---------- */
+.brand { text-align: center; padding-top: 18px; }
+.brand h1 { font-family: var(--serif); font-weight: 400; font-size: clamp(40px, 12vw, 56px); letter-spacing: .01em; line-height: 1; }
+.brand p { font-family: var(--serif); font-style: italic; color: var(--ink-2); margin-top: 10px; font-size: 16px; }
+.trio { flex: 1; display: flex; align-items: center; justify-content: center; gap: clamp(12px, 5vw, 30px); padding: 26px 0; }
+.side { display: flex; flex-direction: column; align-items: center; gap: 9px; width: 92px; font-size: 13px; color: var(--ink-2); line-height: 1.2; }
+.side .disc { width: 66px; height: 66px; border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--line); background: var(--veil); color: var(--ink); transition: transform .15s, border-color .15s; }
+.side:active .disc { transform: scale(.94); }
+.side svg { width: 26px; height: 26px; }
+.play {
+  width: clamp(124px, 36vw, 150px); aspect-ratio: 1; border-radius: 50%; flex: none;
+  font-family: var(--serif); font-size: 27px; letter-spacing: .02em; color: #1d1712;
+  background: radial-gradient(circle at 34% 28%, #f6e2ad, #d0a960 58%, #a67c35);
+  box-shadow: 0 0 0 6px rgba(208,169,96,.16), 0 0 0 1px rgba(255,255,255,.4) inset, 0 20px 40px -12px rgba(0,0,0,.65);
+  transition: transform .15s;
+}
+.play:active { transform: scale(.95); }
+
+.stats { background: var(--veil); border: 1px solid var(--line); border-radius: 18px; padding: 16px; display: grid; gap: 15px; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+.goal { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; }
+.ring { width: 60px; height: 60px; flex: none; transform: rotate(-90deg); }
+.ring circle { fill: none; stroke-width: 5; }
+.ring .bg { stroke: var(--line); }
+.ring .fg { stroke: var(--brass); stroke-linecap: round; transition: stroke-dashoffset .6s ease; }
+.goal .big { font-family: var(--serif); font-size: 22px; font-variant-numeric: tabular-nums; }
+.goal .lbl, .lbl { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+.goal .streak { margin-left: auto; text-align: right; font-size: 13px; color: var(--ink-2); }
+.goal .streak b { display: block; font-family: var(--serif); font-weight: 400; font-size: 22px; color: var(--ink); }
+.seen-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.seen-row .val { font-family: var(--serif); font-size: 18px; font-variant-numeric: tabular-nums; }
+.bar { height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; margin-top: 8px; }
+.bar i { display: block; height: 100%; width: 0; background: var(--ink); border-radius: 3px; transition: width .6s ease; }
+.figs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.fig { display: flex; flex-direction: column; justify-content: space-between; text-align: left; padding: 10px 10px 9px; border-radius: 12px; border: 1px solid var(--line); min-height: 66px; }
+.fig .val { display: block; font-family: var(--serif); font-size: 20px; font-variant-numeric: tabular-nums; margin-top: 3px; }
+.fig .lbl { font-size: 10.5px; letter-spacing: .05em; }
+button.fig:active { background: rgba(244,239,230,.08); }
+.foot { margin-top: 12px; text-align: center; font-size: 12.5px; color: var(--ink-3); min-height: 20px; }
+.foot button { color: var(--ink-2); text-decoration: underline; text-underline-offset: 3px; padding: 6px 4px; }
+
+/* ---------- Barres ---------- */
+.top { display: flex; align-items: center; gap: 10px; min-height: 46px; }
+.top h2 { font-family: var(--serif); font-weight: 400; font-size: 24px; flex: 1; }
+.top .count { font-size: 13px; color: var(--ink-2); }
+.icon { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; flex: none; position: relative; border: 1px solid var(--line); background: var(--veil); }
+.icon svg { width: 21px; height: 21px; }
+.icon:active { transform: scale(.94); }
+.badge { position: absolute; top: -4px; right: -4px; min-width: 19px; height: 19px; padding: 0 5px; border-radius: 10px; background: var(--drop); color: #2a120c; font-size: 11px; font-weight: 700; display: grid; place-items: center; }
+.seg { display: flex; margin: 0 auto; border: 1px solid var(--line); border-radius: 22px; padding: 3px; background: var(--veil); }
+.seg button { padding: 8px 13px; border-radius: 18px; font-size: 13px; color: var(--ink-2); white-space: nowrap; }
+.seg button[aria-pressed=true] { background: var(--ink); color: #1d1712; }
+.hud { font-size: 13px; font-variant-numeric: tabular-nums; color: var(--ink-2); min-width: 44px; text-align: center; }
+
+/* ---------- Jeu ---------- */
+#game { height: 100dvh; min-height: 0; overflow: hidden; }
+.dateline { text-align: center; padding: 14px 0 12px; min-height: 68px; }
+.dateline .d { font-family: var(--serif); font-style: italic; font-size: 20px; }
+.dateline .t { font-size: 12.5px; color: var(--ink-2); margin-top: 4px; letter-spacing: .03em; min-height: 16px; }
+#stage { flex: 1; min-height: 0; position: relative; display: flex; align-items: center; justify-content: center; }
+#card { position: relative; touch-action: none; cursor: grab; will-change: transform; }
+#card.settle { transition: transform .28s cubic-bezier(.2,.9,.3,1.2); }
+#card.enter { animation: enter .32s ease both; }
+#card.fly-keep { transition: transform .3s ease-in, opacity .3s; transform: translate(130vw, -6vh) rotate(20deg) !important; }
+#card.fly-trash { transition: transform .3s ease-in, opacity .3s; transform: translate(-130vw, -6vh) rotate(-20deg) !important; }
+#card.fly-fav { transition: transform .34s ease-in, opacity .34s; transform: translate(0, -110vh) scale(.86) !important; }
+@keyframes enter { from { opacity: 0; transform: scale(.94) translateY(10px); } to { opacity: 1; transform: none; } }
+.stamp { position: absolute; top: 26px; padding: 5px 12px; border: 3px solid; border-radius: 6px; font-weight: 800; letter-spacing: .12em; font-size: 19px; text-transform: uppercase; opacity: 0; background: rgba(15,13,11,.55); pointer-events: none; }
+.stamp.k { left: 26px; color: var(--keep); transform: rotate(-12deg); }
+.stamp.d { right: 26px; color: var(--drop); transform: rotate(12deg); }
+.stamp.f { left: 50%; top: auto; bottom: 30px; transform: translateX(-50%); color: var(--brass); }
+#plusbox { display: flex; flex-direction: column; align-items: center; gap: 20px; max-width: 420px; }
+#plus { width: min(64vw, 270px); aspect-ratio: 4 / 5; }
+#plus .mat { display: grid; place-items: center; background: #f2ebdc; color: #2b221a; }
+#plus .sign { font-family: var(--serif); font-size: 84px; font-weight: 400; line-height: 1; animation: breathe 2.6s ease-in-out infinite; }
+#plus .scan { font-family: var(--serif); font-size: 17px; text-align: center; padding: 0 12px; line-height: 1.4; }
+#plus:disabled { cursor: default; }
+@keyframes breathe { 50% { transform: scale(1.12); opacity: .7; } }
+.hint { text-align: center; font-size: 14px; line-height: 1.5; color: var(--ink-2); max-width: 36ch; }
+#done { text-align: center; display: grid; gap: 12px; justify-items: center; }
+#done h2 { font-family: var(--serif); font-weight: 400; font-size: 28px; }
+.actions { display: flex; align-items: center; justify-content: center; gap: 16px; padding: 16px 0 4px; }
+.act { border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--line); background: var(--veil); transition: transform .12s; }
+.act:active { transform: scale(.9); }
+.act svg { width: 46%; height: 46%; }
+.act.lg { width: 68px; height: 68px; }
+.act.md { width: 56px; height: 56px; }
+.act.sm { width: 44px; height: 44px; color: var(--ink-2); }
+.act.no { color: var(--drop); border-color: color-mix(in srgb, var(--drop) 55%, transparent); }
+.act.yes { color: var(--keep); border-color: color-mix(in srgb, var(--keep) 55%, transparent); }
+.act.fav { color: var(--brass); border-color: color-mix(in srgb, var(--brass) 55%, transparent); }
+.act:disabled { opacity: .35; }
+.ghost { width: 44px; }
+
+/* ---------- Galerie d'art ---------- */
+.wall { columns: 2; column-gap: 20px; padding: 22px 2px 30px; }
+@media (min-width: 560px) { .wall { columns: 3; } }
+.piece { break-inside: avoid; margin: 0 0 26px; display: block; width: 100%; text-align: center; }
+.piece .frame { padding: 6px; }
+.piece .frame .mat { padding: 8px; }
+.piece .frame img { height: auto; }
+.cartel { display: inline-block; margin-top: 10px; padding: 4px 9px; background: rgba(244,239,230,.92); color: #2b221a; font-family: var(--serif); font-style: italic; font-size: 11.5px; box-shadow: 0 2px 5px rgba(0,0,0,.35); }
+.empty { flex: 1; display: grid; place-content: center; justify-items: center; gap: 16px; text-align: center; color: var(--ink-2); font-size: 15px; line-height: 1.5; padding: 20px; }
+.empty .frame { width: 120px; aspect-ratio: 4/5; opacity: .8; }
+.empty .frame .mat { background: transparent; box-shadow: 0 0 0 1px var(--line) inset; }
+
+/* ---------- Albums et corbeille ---------- */
+.note { margin: 12px 0 0; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--veil); font-size: 13.5px; line-height: 1.5; color: var(--ink-2); }
+.chips { display: flex; gap: 8px; overflow-x: auto; padding: 14px 0 4px; scrollbar-width: none; }
+.chips::-webkit-scrollbar { display: none; }
+.chip { flex: none; padding: 9px 13px; border-radius: 20px; border: 1px solid var(--line); font-size: 13px; color: var(--ink-2); background: var(--veil); white-space: nowrap; }
+.chip[aria-pressed=true] { background: var(--ink); color: #1d1712; border-color: transparent; }
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; padding: 12px 0 96px; }
+@media (min-width: 560px) { .grid { grid-template-columns: repeat(4, 1fr); } }
+.tile { position: relative; aspect-ratio: 1; background: rgba(244,239,230,.07); overflow: hidden; border-radius: 3px; }
+.tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.tile img:not([src]) { visibility: hidden; }
+.tile .tick { position: absolute; top: 6px; right: 6px; width: 22px; height: 22px; border-radius: 50%; border: 2px solid rgba(255,255,255,.85); background: rgba(0,0,0,.25); }
+.tile[aria-pressed=true] { outline: 3px solid var(--brass); outline-offset: -3px; }
+.tile[aria-pressed=true] .tick { background: var(--brass); border-color: var(--brass); }
+.tile[aria-pressed=true] .tick::after { content: ""; position: absolute; left: 6px; top: 2px; width: 5px; height: 10px; border: solid #1d1712; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.more { grid-column: 1 / -1; padding: 14px; border: 1px solid var(--line); border-radius: 12px; color: var(--ink-2); font-size: 14px; }
+.dock { position: fixed; z-index: 5; left: 0; right: 0; bottom: 0; padding: 12px max(18px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left)); background: linear-gradient(transparent, rgba(8,7,6,.82) 38%); }
+.dock .in { max-width: 604px; margin: 0 auto; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.dock .in span { flex: 1; font-size: 13.5px; color: var(--ink-2); min-width: 120px; }
+.btn { padding: 13px 18px; border-radius: 26px; font-size: 14.5px; font-weight: 600; background: var(--ink); color: #1d1712; min-height: 46px; }
+.btn.line { background: transparent; color: var(--ink); border: 1px solid var(--line); font-weight: 500; }
+.btn.danger { background: var(--drop); color: #2a120c; }
+.btn:active { transform: scale(.97); }
+
+/* ---------- Fenêtres et messages ---------- */
+#modal { position: fixed; inset: 0; z-index: 20; display: grid; place-items: end center; }
+#modal-bg { position: absolute; inset: 0; background: rgba(6,5,4,.66); }
+#modal-box { position: relative; width: min(100%, 520px); max-height: 86dvh; overflow: auto; background: #211d19; border: 1px solid var(--line); border-radius: 22px 22px 0 0; padding: 22px 20px max(20px, env(safe-area-inset-bottom)); animation: rise .22s ease; }
+@media (min-width: 560px) { #modal { place-items: center; } #modal-box { border-radius: 22px; } }
+@keyframes rise { from { transform: translateY(24px); opacity: 0; } }
+#modal-box h2 { font-family: var(--serif); font-weight: 400; font-size: 23px; margin-bottom: 8px; }
+#modal-box p { color: var(--ink-2); font-size: 14.5px; line-height: 1.5; }
+.row { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+.row .btn { flex: 1; }
+.list { display: grid; gap: 6px; margin-top: 14px; }
+.list button { text-align: left; padding: 13px 14px; border-radius: 12px; border: 1px solid var(--line); font-size: 14.5px; overflow-wrap: anywhere; }
+.list button:active { background: rgba(244,239,230,.08); }
+.field { display: flex; gap: 8px; margin-top: 14px; }
+.field input { flex: 1; min-width: 0; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: rgba(0,0,0,.25); color: var(--ink); font: inherit; font-size: 16px; }
+.field input::placeholder { color: var(--ink-3); }
+.look { display: grid; justify-items: center; gap: 12px; }
+.look .frame { max-width: 100%; }
+.look .frame img { height: auto; max-height: 58dvh; object-fit: contain; }
+#toast { position: fixed; z-index: 30; left: 50%; top: calc(70px + env(safe-area-inset-top)); transform: translateX(-50%); max-width: min(92vw, 440px); padding: 11px 16px; border-radius: 14px; background: rgba(244,239,230,.96); color: #1d1712; font-size: 14px; line-height: 1.4; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,.45); pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition-duration: .01ms !important; } }
+</style>
+</head>
+<body>
+
+<!-- ===================== Accueil ===================== -->
+<main class="screen" id="home">
+  <header class="brand">
+    <h1>Cimaise</h1>
+    <p>Ta galerie, une photo à la fois.</p>
+  </header>
+
+  <nav class="trio" aria-label="Menu">
+    <button class="side" id="go-gallery">
+      <span class="disc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="5" width="16" height="15"/><rect x="7.5" y="8.5" width="9" height="8"/><path d="M12 5V2.5" stroke-linecap="round"/></svg></span>
+      Galerie d’art
+    </button>
+    <button class="play" id="go-play">Jouer</button>
+    <button class="side" id="go-albums">
+      <span class="disc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M3 7.5a1.5 1.5 0 0 1 1.5-1.5h4.2l2 2.3h8.8A1.5 1.5 0 0 1 21 9.8v8.2a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18z"/></svg></span>
+      Albums
+    </button>
+  </nav>
+
+  <section class="stats" aria-label="Statistiques">
+    <button class="goal" id="goal-btn" aria-label="Changer l’objectif quotidien">
+      <svg class="ring" viewBox="0 0 60 60"><circle class="bg" cx="30" cy="30" r="26"/><circle class="fg" id="ring-fg" cx="30" cy="30" r="26" stroke-dasharray="163.4" stroke-dashoffset="163.4"/></svg>
+      <span><span class="lbl">Objectif du jour</span><br><span class="big" id="goal-val">0 / 30</span></span>
+      <span class="streak"><b id="streak-val">0</b><span id="streak-lbl">jour de suite</span></span>
+    </button>
+    <div>
+      <div class="seen-row"><span class="lbl">Photos vues</span><span class="val" id="seen-val">—</span></div>
+      <div class="bar"><i id="seen-bar"></i></div>
+    </div>
+    <div class="figs">
+      <div class="fig"><span class="lbl">Supprimées</span><span class="val" id="del-val">0</span></div>
+      <div class="fig"><span class="lbl">Espace libéré</span><span class="val" id="free-val">0 Ko</span></div>
+      <button class="fig" id="go-trash"><span class="lbl">Corbeille</span><span class="val" id="trash-val">0</span></button>
+    </div>
+  </section>
+  <p class="foot" id="foot"></p>
+</main>
+
+<!-- ===================== Jeu ===================== -->
+<main class="screen" id="game" hidden>
+  <div class="top">
+    <button class="icon" data-back aria-label="Retour"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <div class="seg" id="seg" hidden>
+      <button data-mode="rand" aria-pressed="true">Au hasard</button>
+      <button data-mode="day" aria-pressed="false">Ce jour-là</button>
+    </div>
+    <span class="hud" id="hud-day" style="margin-left:auto"></span>
+    <button class="icon" id="game-trash" aria-label="Corbeille"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 12.5h9l1-12.5"/></svg><span class="badge" id="hud-trash" hidden></span></button>
+  </div>
+
+  <div class="dateline"><p class="d" id="date-d"></p><p class="t" id="date-t"></p></div>
+
+  <div id="stage">
+    <div id="plusbox">
+      <button id="plus" class="frame" aria-label="Ouvrir ma galerie"><span class="mat"><span class="sign" id="plus-sign">+</span><span class="scan" id="plus-scan" hidden></span></span></button>
+      <p class="hint" id="plus-hint"></p>
+    </div>
+    <div id="card" hidden>
+      <div class="frame" id="card-frame"><span class="mat"><img id="photo" alt="Photo à trier" draggable="false"></span></div>
+      <span class="stamp k">Garder</span><span class="stamp d">Jeter</span><span class="stamp f">Favori</span>
+    </div>
+    <div id="done" hidden>
+      <h2>Tout est trié.</h2>
+      <p class="hint">Il ne reste aucune photo à voir dans ce dossier.</p>
+      <button class="btn line" id="done-trash">Ouvrir la corbeille</button>
+    </div>
+  </div>
+
+  <div class="actions" id="actions" hidden>
+    <button class="act sm" id="b-undo" aria-label="Annuler le dernier geste" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5L4 9l4 4"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg></button>
+    <button class="act lg no" id="b-no" aria-label="Jeter"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <button class="act md fav" id="b-fav" aria-label="Garder en favori"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z"/></svg></button>
+    <button class="act lg yes" id="b-yes" aria-label="Garder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>
+    <span class="ghost"></span>
+  </div>
+  <input type="file" id="file" accept="image/*" multiple hidden>
+</main>
+
+<!-- ===================== Galerie d'art ===================== -->
+<main class="screen" id="gallery" hidden>
+  <div class="top">
+    <button class="icon" data-back aria-label="Retour"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <h2>Galerie d’art</h2><span class="count" id="gal-count"></span>
+  </div>
+  <div class="wall" id="wall"></div>
+  <div class="empty" id="gal-empty" hidden>
+    <span class="frame"><span class="mat"></span></span>
+    <p>Aucune œuvre accrochée pour l’instant.<br>Pendant le tri, touche le cœur pour garder une photo en favori.</p>
+  </div>
+</main>
+
+<!-- ===================== Albums ===================== -->
+<main class="screen" id="albums" hidden>
+  <div class="top">
+    <button class="icon" data-back aria-label="Retour"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <h2>Albums</h2><span class="count" id="alb-count"></span>
+  </div>
+  <p class="note" id="alb-note" hidden></p>
+  <div class="chips" id="chips"></div>
+  <div class="grid" id="alb-grid"></div>
+  <div class="empty" id="alb-empty" hidden><p>Les photos que tu gardes apparaissent ici,<br>prêtes à être rangées dans tes dossiers.</p></div>
+  <div class="dock" id="alb-dock" hidden><div class="in"><span id="alb-sel"></span><button class="btn line" id="alb-clear">Annuler</button><button class="btn" id="alb-move">Ranger dans…</button></div></div>
+</main>
+
+<!-- ===================== Corbeille ===================== -->
+<main class="screen" id="trash" hidden>
+  <div class="top">
+    <button class="icon" data-back aria-label="Retour"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <h2>Corbeille</h2><span class="count" id="tr-count"></span>
+  </div>
+  <p class="note" id="tr-note"></p>
+  <div class="grid" id="tr-grid"></div>
+  <div class="empty" id="tr-empty" hidden><p>La corbeille est vide.</p></div>
+  <div class="dock" id="tr-dock" hidden><div class="in"><span id="tr-info"></span><button class="btn danger" id="tr-empty-btn"></button><button class="btn line" id="tr-manual-btn" hidden></button></div></div>
+</main>
+
+<div id="modal" hidden><div id="modal-bg"></div><div id="modal-box" role="dialog" aria-modal="true"></div></div>
+<div id="toast" role="status" hidden></div>
+
+<script>
+(() => {
+'use strict';
+
+/* ============================================================
+   Outils
+   ============================================================ */
+const $ = s => document.querySelector(s);
+const el = (tag, props = {}, kids = []) => {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === 'class') n.className = v;
+    else if (k === 'text') n.textContent = v;
+    else if (k === 'data') Object.assign(n.dataset, v);
+    else if (k.startsWith('on')) n.addEventListener(k.slice(2), v);
+    else n.setAttribute(k, v);
+  }
+  for (const c of [].concat(kids)) if (c != null) n.append(c);
+  return n;
+};
+const wait = ms => new Promise(r => setTimeout(r, ms));
+const nf = n => Number(n).toLocaleString('fr-FR');
+const pl = (n, one, many) => n > 1 ? (many || one + 's') : one;
+const fmtSize = b => b >= 1e9 ? (b / 1e9).toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + ' Go'
+  : b >= 1e6 ? Math.round(b / 1e6).toLocaleString('fr-FR') + ' Mo' : Math.round(b / 1e3).toLocaleString('fr-FR') + ' Ko';
+const fmtLong = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+const fmtShort = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+const fmtDayMonth = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long' });
+const pad = n => String(n).padStart(2, '0');
+const dayKey = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+const IMG = /\.(jpe?g|png|webp|gif|avif|bmp)$/i;
+const RW = { mode: 'readwrite' };
+const canFS = 'showDirectoryPicker' in window;
+let fsBlocked = false;
+const fsMode = () => canFS && !fsBlocked;
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isImp = p => p.startsWith('imp:');
+
+/* ---------- Messages ---------- */
+let toastTimer = null;
+function toast(msg, ms = 2800) {
+  const t = $('#toast');
+  clearTimeout(toastTimer);
+  if (!msg) { t.hidden = true; return; }
+  t.textContent = msg; t.hidden = false;
+  if (ms) toastTimer = setTimeout(() => { t.hidden = true; }, ms);
+}
+
+/* ---------- Fenêtres ---------- */
+let modalClose = null;
+function modal(build) {
+  return new Promise(resolve => {
+    const box = $('#modal-box'); box.replaceChildren();
+    const close = v => { $('#modal').hidden = true; box.replaceChildren(); modalClose = null; resolve(v); };
+    if (modalClose) modalClose(null);
+    modalClose = close;
+    build(box, close);
+    $('#modal').hidden = false;
+  });
+}
+$('#modal-bg').addEventListener('click', () => modalClose && modalClose(null));
+const confirmBox = ({ title, text, ok, danger }) => modal((box, close) => {
+  box.append(el('h2', { text: title }), el('p', { text }),
+    el('div', { class: 'row' }, [
+      el('button', { class: 'btn line', text: 'Annuler', onclick: () => close(false) }),
+      el('button', { class: 'btn' + (danger ? ' danger' : ''), text: ok, onclick: () => close(true) })
+    ]));
+});
+
+/* ============================================================
+   Mémoire du navigateur (IndexedDB, avec repli en mémoire vive)
+   ============================================================ */
+const DB = (() => {
+  const mem = { kv: new Map(), rec: new Map(), thumbs: new Map(), favs: new Map() };
+  let db = null;
+  const ready = new Promise(res => {
+    let r;
+    try { r = indexedDB.open('cimaise', 1); } catch (e) { return res(false); }
+    r.onupgradeneeded = () => {
+      const d = r.result;
+      d.createObjectStore('kv'); d.createObjectStore('rec', { keyPath: 'path' });
+      d.createObjectStore('thumbs'); d.createObjectStore('favs', { keyPath: 'path' });
+    };
+    r.onsuccess = () => { db = r.result; res(true); };
+    r.onerror = () => res(false); r.onblocked = () => res(false);
+  });
+  const tx = (store, mode, fn) => new Promise((res, rej) => {
+    let t, rq;
+    try { t = db.transaction(store, mode); rq = fn(t.objectStore(store)); } catch (e) { return rej(e); }
+    t.oncomplete = () => res(rq ? rq.result : undefined);
+    t.onerror = t.onabort = () => rej(t.error || new Error('transaction'));
+  });
+  const keyOf = (v, k) => k !== undefined ? k : v.path;
+  return {
+    async get(s, k) { return (await ready) ? tx(s, 'readonly', o => o.get(k)) : mem[s].get(k); },
+    async all(s) { return (await ready) ? tx(s, 'readonly', o => o.getAll()) : [...mem[s].values()]; },
+    async put(s, v, k) { if (await ready) return tx(s, 'readwrite', o => { k !== undefined ? o.put(v, k) : o.put(v); }); mem[s].set(keyOf(v, k), v); },
+    async del(s, k) { if (await ready) return tx(s, 'readwrite', o => { o.delete(k); }); mem[s].delete(k); },
+    async delMany(s, ks) { if (!ks.length) return; if (await ready) return tx(s, 'readwrite', o => { ks.forEach(k => o.delete(k)); }); ks.forEach(k => mem[s].delete(k)); }
+  };
+})();
+
+/* ============================================================
+   État
+   ============================================================ */
+const S = { goal: 30, days: {}, deleted: 0, freed: 0, scanTotal: null, amb: null, dirs: [], rootName: null };
+const recs = new Map();           // chemin -> { path, name, status: 'kept' | 'trash', fav, date, size, at }
+let root = null;                  // dossier choisi (Android / ordinateur)
+const save = () => DB.put('kv', S, 'state').catch(() => {});
+
+function totals() {
+  let kept = 0, trash = 0, tb = 0;
+  for (const r of recs.values()) { if (r.status === 'trash') { trash++; tb += r.size || 0; } else kept++; }
+  const seen = kept + trash + S.deleted;
+  const total = S.scanTotal == null ? null : Math.max(seen, S.scanTotal + S.deleted);
+  return { kept, trash, tb, seen, total };
+}
+function todayCount() { const d = S.days[dayKey()]; return d ? d.n : 0; }
+function bumpDay(k) {
+  const key = dayKey(); const d = S.days[key] || (S.days[key] = { n: 0 });
+  d.n = Math.max(0, d.n + k); d.g = S.goal;
+  if (k > 0 && d.n === S.goal) toast('Objectif du jour atteint.');
+}
+function streak() {
+  const met = k => { const d = S.days[k]; return !!d && d.n >= (d.g || S.goal); };
+  const d = new Date(); let n = 0;
+  if (!met(dayKey(d))) d.setDate(d.getDate() - 1);
+  while (met(dayKey(d))) { n++; d.setDate(d.getDate() - 1); }
+  return n;
+}
+function pruneDays() {
+  const lim = new Date(); lim.setDate(lim.getDate() - 400); const k = dayKey(lim);
+  for (const key of Object.keys(S.days)) if (key < k) delete S.days[key];
+}
+
+/* ============================================================
+   Couleurs d'ambiance
+   ============================================================ */
+function rgb2hsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2; let h = 0, s = 0;
+  if (mx !== mn) {
+    const d = mx - mn; s = l > .5 ? d / (2 - mx - mn) : d / (mx + mn);
+    h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h /= 6;
+  }
+  return [h, s, l];
+}
+const tune = (rgb, lmin, lmax) => {
+  const [h, s, l] = rgb2hsl(rgb[0], rgb[1], rgb[2]);
+  return `hsl(${Math.round(h * 360)} ${Math.round(Math.min(.62, s * 1.2) * 100)}% ${Math.round(Math.min(lmax, Math.max(lmin, l)) * 100)}%)`;
+};
+function tones(img) {
+  try {
+    const c = document.createElement('canvas'); c.width = c.height = 24;
+    const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(img, 0, 0, 24, 24);
+    const d = x.getImageData(0, 0, 24, 24).data;
+    let r = 0, g = 0, b = 0, n = 0, vr = 0, vg = 0, vb = 0, vw = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      const R = d[i], G = d[i + 1], B = d[i + 2];
+      r += R; g += G; b += B; n++;
+      const sat = (Math.max(R, G, B) - Math.min(R, G, B)) / 255, w = sat * sat + .02;
+      vr += R * w; vg += G * w; vb += B * w; vw += w;
+    }
+    return [tune([r / n, g / n, b / n], .13, .23), tune([vr / vw, vg / vw, vb / vw], .28, .42)];
+  } catch (e) { return null; }
+}
+function applyAmb(a) {
+  if (!a) return;
+  const st = document.documentElement.style;
+  st.setProperty('--a1', a[0]); st.setProperty('--a2', a[1]);
+  const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = a[0];
+}
+
+/* ============================================================
+   Dates des photos
+   ============================================================ */
+function nameDate(n) {
+  const now = new Date();
+  let m = n.match(/(?:^|\D)((?:19|20)\d{2})[-_.]?(0[1-9]|1[0-2])[-_.]?(0[1-9]|[12]\d|3[01])(?:\D|$)/);
+  if (m) {
+    const d = new Date(+m[1], m[2] - 1, +m[3], 12);
+    if (+m[1] >= 1990 && d <= now) return +d;
+  }
+  m = n.match(/(?:^|\D)(1\d{12})(?:\D|$)/);
+  if (m) { const t = +m[1]; if (t > 978307200000 && t <= +now) return t; }
+  return null;
+}
+async function exifDate(file) {
+  try {
+    const v = new DataView(await file.slice(0, 262144).arrayBuffer());
+    if (v.byteLength < 12 || v.getUint16(0) !== 0xFFD8) return null;
+    let o = 2;
+    while (o + 10 <= v.byteLength) {
+      if (v.getUint8(o) !== 0xFF) return null;
+      const mk = v.getUint8(o + 1), len = v.getUint16(o + 2);
+      if (mk === 0xE1 && v.getUint32(o + 4) === 0x45786966) return tiffDate(v, o + 10, Math.min(v.byteLength, o + 2 + len));
+      if (mk === 0xDA || len < 2) return null;
+      o += 2 + len;
+    }
+  } catch (e) {}
+  return null;
+}
+function tiffDate(v, t, end) {
+  if (t + 8 > end) return null;
+  const le = v.getUint16(t) === 0x4949;
+  const u16 = o => v.getUint16(o, le), u32 = o => v.getUint32(o, le);
+  const ifd = off => {
+    const out = {}, p = t + off; if (p + 2 > end) return out;
+    const n = u16(p);
+    for (let i = 0; i < n; i++) { const e = p + 2 + i * 12; if (e + 12 > end) break; out[u16(e)] = { type: u16(e + 2), count: u32(e + 4), at: e + 8 }; }
+    return out;
+  };
+  const str = e => {
+    if (!e || e.type !== 2 || e.count < 2 || e.count > 64) return null;
+    const off = e.count > 4 ? t + u32(e.at) : e.at; if (off + e.count > end) return null;
+    let s = ''; for (let i = 0; i < e.count - 1; i++) s += String.fromCharCode(v.getUint8(off + i));
+    return s;
+  };
+  const i0 = ifd(u32(t + 4)); let s = null;
+  if (i0[0x8769]) { const ex = ifd(u32(i0[0x8769].at)); s = str(ex[0x9003]) || str(ex[0x9004]); }
+  s = s || str(i0[0x0132]);
+  const m = s && s.match(/^(\d{4}):(\d\d):(\d\d) (\d\d):(\d\d):(\d\d)/);
+  if (!m || +m[1] < 1990) return null;
+  const d = new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
+  return isNaN(d) ? null : d;
+}
+async function photoDate(file, e) {
+  let d = null, time = false;
+  if (/\.jpe?g$/i.test(e.name) || file.type === 'image/jpeg') { d = await exifDate(file); if (d) time = true; }
+  if (!d && e.d != null) { d = new Date(e.d); time = !!e.dt; }
+  if (!d && file.lastModified) { d = new Date(file.lastModified); time = true; }
+  if (d) { e.d = +d; e.dt = time; }
+  return d ? { d, time } : null;
+}
+const isThisDay = ms => { if (ms == null) return false; const d = new Date(ms), n = new Date(); return d.getMonth() === n.getMonth() && d.getDate() === n.getDate() && d.getFullYear() < n.getFullYear(); };
+
+/* ============================================================
+   Images réduites
+   ============================================================ */
+const loadImg = url => new Promise((res, rej) => { const im = new Image(); im.onload = () => im.naturalWidth ? res(im) : rej(new Error('vide')); im.onerror = () => rej(new Error('illisible')); im.src = url; });
+function shrink(img, max, q) {
+  return new Promise(res => {
+    try {
+      const s = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(img.naturalWidth * s)); c.height = Math.max(1, Math.round(img.naturalHeight * s));
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      c.toBlob(b => res(b), 'image/jpeg', q);
+    } catch (e) { res(null); }
+  });
+}
+
+/* ============================================================
+   Accès au dossier (Android Chrome, ordinateur)
+   ============================================================ */
+async function pickDir() {
+  const tryPick = async opts => {
+    try { return await window.showDirectoryPicker(opts); }
+    catch (e) {
+      if (e && e.name === 'AbortError') return null;
+      if (e && e.name === 'SecurityError') { fsBlocked = true; return null; }
+      throw e;
+    }
+  };
+  try { return await tryPick({ id: 'cimaise', mode: 'readwrite', startIn: 'pictures' }); }
+  catch (e) {
+    try { return await tryPick({ mode: 'readwrite' }); }
+    catch (e2) { fsBlocked = true; return null; }
+  }
+}
+async function ensureAccess() {
+  if (!fsMode() || !root) return false;
+  try {
+    let p = await root.queryPermission(RW);
+    if (p !== 'granted') p = await root.requestPermission(RW);
+    return p === 'granted';
+  } catch (e) { return false; }
+}
+async function resolveDir(path, create = false) {
+  let d = root;
+  for (const seg of path.split('/').filter(Boolean)) d = await d.getDirectoryHandle(seg, { create });
+  return d;
+}
+async function locate(path) {
+  const i = path.lastIndexOf('/');
+  return { dir: await resolveDir(i < 0 ? '' : path.slice(0, i)), name: path.slice(i + 1) };
+}
+const dirOf = p => isImp(p) ? 'imp:' : (p.lastIndexOf('/') < 0 ? '' : p.slice(0, p.lastIndexOf('/')));
+const dirLabel = d => d === 'imp:' ? 'Importées' : d === '' ? (S.rootName || 'Dossier principal') : d;
+
+/* ============================================================
+   Session de jeu
+   ============================================================ */
+let entries = [], pool = [], dayPool = null, scanned = false, mode = 'rand';
+let cur = null, queue = [], undo = [], busy = false, filling = null;
+
+function resetSession() {
+  queue.forEach(drop); undo.forEach(u => drop(u.it)); if (cur) drop(cur);
+  entries = []; pool = []; dayPool = null; scanned = false; mode = 'rand'; cur = null; queue = []; undo = []; filling = null;
+}
+function drop(it) { try { URL.revokeObjectURL(it.url); } catch (e) {} it.im = null; }
+function release(e) { e.out = false; pool.push(e); if (dayPool && isThisDay(e.d)) dayPool.push(e); }
+function take() {
+  const arr = (mode === 'day' && dayPool) ? dayPool : pool;
+  while (arr.length) {
+    const i = Math.random() * arr.length | 0, e = arr[i];
+    arr[i] = arr[arr.length - 1]; arr.pop();
+    if (!e.out && !e.bad && !recs.has(e.path)) { e.out = true; return e; }
+  }
+  return null;
+}
+async function prepare() {
+  for (;;) {
+    const e = take(); if (!e) return null;
+    let url = null;
+    try {
+      const file = e.file || await e.h.getFile();
+      url = URL.createObjectURL(file);
+      const im = await loadImg(url);
+      const date = await photoDate(file, e);
+      return { e, file, url, im, w: im.naturalWidth, h: im.naturalHeight, date, size: file.size };
+    } catch (err) { if (url) URL.revokeObjectURL(url); e.bad = true; }
+  }
+}
+function fill() {
+  if (filling || queue.length) return;
+  filling = prepare().then(it => { filling = null; if (it) queue.push(it); }, () => { filling = null; });
+}
+async function nextItem() {
+  if (queue.length) return queue.shift();
+  if (filling) { await filling; if (queue.length) return queue.shift(); }
+  return prepare();
+}
+async function flush() {
+  if (filling) await filling;
+  for (const it of queue) { release(it.e); drop(it); }
+  queue = [];
+  if (cur) { release(cur.e); drop(cur); cur = null; }
+}
+
+/* ---------- Parcours du dossier ---------- */
+async function scan(onProgress) {
+  const list = [], dirs = []; let failed = false;
+  async function walk(dir, prefix, depth) {
+    for await (const [name, h] of dir.entries()) {
+      if (h.kind === 'file') {
+        if (IMG.test(name)) { list.push({ path: prefix + name, name, h, d: nameDate(name), dt: false }); if (list.length % 40 === 0) onProgress(list.length); }
+      } else if (depth < 6 && !name.startsWith('.') && name !== 'Android') {
+        dirs.push(prefix + name);
+        try { await walk(h, prefix + name + '/', depth + 1); } catch (e) { failed = true; }
+      }
+    }
+  }
+  await walk(root, '', 0);
+  entries = list; S.dirs = dirs.sort((a, b) => a.localeCompare(b, 'fr')); S.scanTotal = list.length;
+  if (!failed && list.length) {                 // oublie les photos qui n'existent plus dans le dossier
+    const here = new Set(list.map(e => e.path)), gone = [];
+    for (const p of recs.keys()) if (!isImp(p) && !here.has(p)) gone.push(p);
+    gone.forEach(p => recs.delete(p));
+    await DB.delMany('rec', gone); await DB.delMany('thumbs', gone);
+  }
+  pool = list.filter(e => !recs.has(e.path));
+  scanned = true; save();
+}
+
+/* ---------- Affichage du jeu ---------- */
+const stage = $('#stage'), card = $('#card'), photo = $('#photo');
+function setStage(s) {
+  $('#plusbox').hidden = !(s === 'plus' || s === 'scan');
+  card.hidden = s !== 'photo'; $('#done').hidden = s !== 'done';
+  $('#actions').hidden = s !== 'photo'; $('#seg').hidden = s !== 'photo';
+  $('#plus').disabled = s === 'scan';
+  $('#plus-sign').hidden = s === 'scan'; $('#plus-scan').hidden = s !== 'scan';
+  if (s !== 'photo') { $('#date-d').textContent = ''; $('#date-t').textContent = ''; }
+  if (s === 'plus') plusHint();
+  if (s === 'done') $('#done-trash').hidden = totals().trash === 0;
+  stage.dataset.state = s;
+}
+function plusHint(msg) {
+  const h = $('#plus-hint');
+  if (msg) { h.textContent = msg; return; }
+  if (fsMode()) {
+    h.textContent = root
+      ? `Appuie sur + pour rouvrir « ${S.rootName || root.name} » et reprendre le tri.`
+      : 'Appuie sur +, choisis le dossier où sont tes photos (souvent DCIM ou DCIM/Camera), puis autorise la modification. Aucune photo ne quitte ton téléphone.';
+  } else if (isIOS) {
+    h.textContent = 'Sur iPhone, un site ne peut ni parcourir ta galerie tout seul, ni y supprimer une photo. Appuie sur + et choisis toi-même des photos (une centaine à la fois) : tu les tries ici, puis tu supprimes dans l’app Photos celles de la corbeille.';
+  } else {
+    h.textContent = 'Ce navigateur ne laisse pas un site parcourir ni modifier ta galerie. Appuie sur + pour choisir des photos à trier. Sur Android, ouvre le site dans Chrome pour la version complète.';
+  }
+}
+function hud() {
+  const t = totals();
+  $('#hud-day').textContent = `${todayCount()} / ${S.goal}`;
+  const b = $('#hud-trash'); b.hidden = !t.trash; b.textContent = t.trash > 99 ? '99+' : t.trash;
+  $('#b-undo').disabled = !undo.length;
+  document.querySelectorAll('#seg button').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.mode === mode)));
+}
+function fit() {
+  if (!cur || card.hidden) return;
+  const r = stage.getBoundingClientRect(), extra = 34;
+  const s = Math.min((r.width - extra) / cur.w, (r.height - extra) / cur.h);
+  const f = $('#card-frame');
+  f.style.width = Math.max(60, Math.floor(cur.w * s) + extra) + 'px';
+  f.style.height = Math.max(60, Math.floor(cur.h * s) + extra) + 'px';
+}
+function paint() {
+  setStage('photo');
+  photo.src = cur.url;
+  card.className = ''; card.style.transform = ''; card.style.opacity = '';
+  card.querySelectorAll('.stamp').forEach(s => s.style.opacity = 0);
+  fit();
+  void card.offsetWidth; card.classList.add('enter');
+  const dl = cur.date;
+  $('#date-d').textContent = dl ? fmtLong.format(dl.d) : 'Date inconnue';
+  let sub = '';
+  if (dl) {
+    const years = new Date().getFullYear() - dl.d.getFullYear();
+    if (mode === 'day' && years > 0) sub = `Il y a ${years} ${pl(years, 'an')}, jour pour jour`;
+    else if (dl.time) sub = `${dl.d.getHours()} h ${pad(dl.d.getMinutes())}`;
+  }
+  $('#date-t').textContent = sub;
+  const a = tones(cur.im); if (a) { S.amb = a; applyAmb(a); }
+  hud();
+}
+async function advance() {
+  let it = await nextItem();
+  if (!it && mode === 'day') {
+    toast('Plus de photo de ce jour-là. Retour au hasard.');
+    mode = 'rand'; dayPool = null; it = await nextItem();
+  }
+  if (!it) {
+    cur = null; hud();
+    if (fsMode()) setStage('done');
+    else { setStage('plus'); plusHint('Tout est trié. Appuie sur + pour ajouter d’autres photos.'); }
+    return;
+  }
+  cur = it; paint(); fill();
+}
+
+/* ---------- Décisions ---------- */
+async function commit(it, type) {
+  const rec = { path: it.e.path, name: it.e.name, status: type === 'trash' ? 'trash' : 'kept', fav: type === 'fav', date: it.date ? +it.date.d : null, size: it.size, at: Date.now() };
+  const thumb = await shrink(it.im, 320, .72);
+  recs.set(rec.path, rec);
+  await DB.put('rec', rec);
+  if (thumb) await DB.put('thumbs', thumb, rec.path);
+  if (type === 'fav') {
+    const big = await shrink(it.im, 1400, .86);
+    if (big) await DB.put('favs', { path: rec.path, name: rec.name, date: rec.date, at: rec.at, blob: big });
+  }
+  bumpDay(1);
+  undo.push({ it, type }); while (undo.length > 5) drop(undo.shift().it);
+  if (!fsMode()) S.scanTotal = Math.max(S.scanTotal || 0, [...recs.keys()].filter(isImp).length + pool.filter(e => !e.out && !recs.has(e.path)).length + queue.length);
+  save();
+}
+let persisted = false;
+async function decide(type) {
+  if (!cur || busy) return;
+  busy = true;
+  const it = cur;
+  card.classList.remove('enter', 'settle'); card.classList.add('fly-' + type);
+  const flown = wait(300);
+  try { await commit(it, type); } catch (e) { console.error(e); toast('Ce choix n’a pas pu être enregistré.'); }
+  await flown;
+  cur = null;
+  try { await advance(); } finally { busy = false; }
+  if (!persisted) { persisted = true; try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) {} }
+}
+async function undoLast() {
+  if (busy || !undo.length) return;
+  busy = true;
+  try {
+    const { it, type } = undo.pop(), p = it.e.path;
+    recs.delete(p);
+    await DB.del('rec', p); await DB.del('thumbs', p); if (type === 'fav') await DB.del('favs', p);
+    bumpDay(-1);
+    if (cur) queue.unshift(cur);
+    cur = it; paint(); save();
+  } finally { busy = false; }
+}
+async function setMode(m) {
+  if (busy || m === mode || !scanned) return;
+  busy = true;
+  try {
+    await flush();
+    if (m === 'day') {
+      const blind = pool.filter(e => !e.out && e.d == null && e.h);
+      for (let i = 0; i < blind.length; i++) {
+        if (i % 25 === 0) toast(`Lecture des dates… ${nf(i)} / ${nf(blind.length)}`, 0);
+        try { const f = await blind[i].h.getFile(); blind[i].d = f.lastModified; blind[i].dt = true; } catch (e) {}
+      }
+      toast(null);
+      const dp = pool.filter(e => !e.out && !e.bad && !recs.has(e.path) && isThisDay(e.d));
+      if (!dp.length) toast(`Aucune photo à trier prise un ${fmtDayMonth.format(new Date())} les années passées.`, 3600);
+      else { dayPool = dp; mode = 'day'; }
+    } else { mode = 'rand'; dayPool = null; }
+    await advance();
+  } finally { busy = false; hud(); }
+}
+
+/* ---------- Bouton + ---------- */
+async function startScan() {
+  setStage('scan');
+  const out = $('#plus-scan'); out.textContent = 'Je parcours ta galerie…';
+  try { await scan(n => { out.textContent = `${nf(n)} photos trouvées…`; }); }
+  catch (e) { console.error(e); setStage('plus'); plusHint('Le dossier n’a pas pu être lu. Appuie sur + pour réessayer.'); return; }
+  if (!entries.length) {
+    scanned = false; root = null; DB.del('kv', 'root').catch(() => {});
+    setStage('plus'); plusHint('Aucune photo trouvée dans ce dossier. Appuie sur + pour en choisir un autre.'); return;
+  }
+  await advance();
+}
+async function onPlus() {
+  if (busy) return;
+  if (!fsMode()) { $('#file').click(); return; }
+  busy = true;
+  try {
+    if (root) {
+      if (!(await ensureAccess())) { root = null; plusHint('Accès non accordé. Appuie de nouveau sur + pour choisir le dossier de tes photos.'); return; }
+    } else {
+      const h = await pickDir();
+      if (!h) { plusHint(); return; }
+      root = h; S.rootName = h.name;
+      try { await DB.put('kv', h, 'root'); } catch (e) {}
+    }
+    await startScan();
+  } finally { busy = false; }
+}
+$('#plus').addEventListener('click', onPlus);
+$('#file').addEventListener('change', async ev => {
+  const files = [...ev.target.files].filter(f => f.type.startsWith('image/') || IMG.test(f.name));
+  ev.target.value = '';
+  if (!files.length) return;
+  const known = new Set(entries.map(e => e.path)); let added = 0;
+  for (const f of files) {
+    const path = `imp:${f.name}|${f.size}`;
+    if (known.has(path)) continue; known.add(path);
+    const nd = nameDate(f.name);
+    const e = { path, name: f.name, file: f, d: nd != null ? nd : (f.lastModified || null), dt: nd == null };
+    entries.push(e);
+    if (!recs.has(path)) { pool.push(e); added++; }
+  }
+  scanned = true;
+  S.scanTotal = [...recs.keys()].filter(isImp).length + pool.filter(e => !e.out && !recs.has(e.path)).length + queue.length + (cur ? 1 : 0);
+  save();
+  if (!added) { toast('Ces photos ont déjà été triées.'); return; }
+  if (!cur && !busy) { busy = true; try { await advance(); } finally { busy = false; } }
+});
+
+/* ---------- Gestes ---------- */
+let drag = null;
+const stampK = card.querySelector('.stamp.k'), stampD = card.querySelector('.stamp.d'), stampF = card.querySelector('.stamp.f');
+card.addEventListener('pointerdown', e => {
+  if (!cur || busy || (e.pointerType === 'mouse' && e.button !== 0)) return;
+  drag = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now(), dx: 0, dy: 0 };
+  try { card.setPointerCapture(e.pointerId); } catch (err) {}
+  card.classList.remove('enter', 'settle');
+});
+card.addEventListener('pointermove', e => {
+  if (!drag || e.pointerId !== drag.id) return;
+  drag.dx = e.clientX - drag.x; drag.dy = e.clientY - drag.y;
+  const up = drag.dy < 0 && Math.abs(drag.dy) > Math.abs(drag.dx) * 1.2;
+  card.style.transform = `translate(${drag.dx}px, ${up ? drag.dy : drag.dy * .3}px) rotate(${up ? 0 : drag.dx / 20}deg)`;
+  stampK.style.opacity = up ? 0 : Math.min(1, Math.max(0, drag.dx / 90));
+  stampD.style.opacity = up ? 0 : Math.min(1, Math.max(0, -drag.dx / 90));
+  stampF.style.opacity = up ? Math.min(1, -drag.dy / 110) : 0;
+});
+const endDrag = e => {
+  if (!drag || e.pointerId !== drag.id) return;
+  const { dx, dy, t } = drag; drag = null;
+  const v = dx / Math.max(1, performance.now() - t);
+  const up = dy < 0 && Math.abs(dy) > Math.abs(dx) * 1.2;
+  if (e.type === 'pointercancel') { /* geste interrompu */ }
+  else if (up && dy < -110) return void decide('fav');
+  else if (!up && (dx > 90 || (dx > 36 && v > .55))) return void decide('keep');
+  else if (!up && (dx < -90 || (dx < -36 && v < -.55))) return void decide('trash');
+  card.classList.add('settle'); card.style.transform = '';
+  [stampK, stampD, stampF].forEach(s => s.style.opacity = 0);
+};
+card.addEventListener('pointerup', endDrag);
+card.addEventListener('pointercancel', endDrag);
+$('#b-yes').addEventListener('click', () => decide('keep'));
+$('#b-no').addEventListener('click', () => decide('trash'));
+$('#b-fav').addEventListener('click', () => decide('fav'));
+$('#b-undo').addEventListener('click', undoLast);
+$('#seg').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setMode(b.dataset.mode); });
+window.addEventListener('keydown', e => {
+  if (screen !== 'game' || !$('#modal').hidden) return;
+  if (e.key === 'ArrowRight') decide('keep');
+  else if (e.key === 'ArrowLeft') decide('trash');
+  else if (e.key === 'ArrowUp') decide('fav');
+  else if (e.key === 'Backspace' || (e.key === 'z' && (e.ctrlKey || e.metaKey))) undoLast();
+});
+window.addEventListener('resize', fit);
+
+/* ============================================================
+   Vignettes paresseuses (albums, corbeille)
+   ============================================================ */
+const thumbURLs = [];
+const io = new IntersectionObserver(list => {
+  list.forEach(async en => {
+    if (!en.isIntersecting) return;
+    io.unobserve(en.target);
+    try {
+      const b = await DB.get('thumbs', en.target.dataset.path);
+      if (b) { const u = URL.createObjectURL(b); thumbURLs.push(u); en.target.querySelector('img').src = u; }
+    } catch (e) {}
+  });
+}, { rootMargin: '400px' });
+function clearThumbs() { io.disconnect(); thumbURLs.splice(0).forEach(u => URL.revokeObjectURL(u)); }
+function fillGrid(grid, list, onTap, selectable) {
+  grid.replaceChildren();
+  let shown = 0;
+  const more = el('button', { class: 'more', text: 'Afficher plus de photos', onclick: () => add() });
+  function add() {
+    more.remove();
+    for (const r of list.slice(shown, shown + 150)) {
+      const t = el('button', { class: 'tile', data: { path: r.path }, 'aria-label': r.date ? fmtShort.format(new Date(r.date)) : r.name, onclick: () => onTap(r, t) },
+        [el('img', { alt: '' }), selectable ? el('span', { class: 'tick' }) : null]);
+      if (selectable) t.setAttribute('aria-pressed', 'false');
+      grid.append(t); io.observe(t);
+    }
+    shown = Math.min(list.length, shown + 150);
+    if (shown < list.length) grid.append(more);
+  }
+  add();
+}
+
+/* ============================================================
+   Albums
+   ============================================================ */
+let albFilter = null; const sel = new Set();
+function renderAlbums() {
+  clearThumbs(); sel.clear();
+  const kept = [...recs.values()].filter(r => r.status === 'kept').sort((a, b) => (b.date || 0) - (a.date || 0));
+  const canMove = fsMode() && kept.some(r => !isImp(r.path));
+  const note = $('#alb-note');
+  note.hidden = canMove || !kept.length;
+  note.textContent = isIOS
+    ? 'Sur iPhone, un site ne peut pas déplacer les photos dans les dossiers de l’appareil. Tu retrouves ici celles que tu as gardées ; le rangement se fait dans l’app Photos.'
+    : 'Ce navigateur ne laisse pas un site déplacer les photos dans les dossiers de l’appareil. Sur Android, ouvre le site dans Chrome pour ranger tes photos.';
+  $('#alb-empty').hidden = kept.length > 0;
+  $('#alb-count').textContent = kept.length ? `${nf(kept.length)} ${pl(kept.length, 'photo gardée', 'photos gardées')}` : '';
+  const counts = new Map(); kept.forEach(r => { const d = dirOf(r.path); counts.set(d, (counts.get(d) || 0) + 1); });
+  if (albFilter != null && !counts.has(albFilter)) albFilter = null;
+  const chips = $('#chips'); chips.replaceChildren(); chips.hidden = counts.size < 2;
+  const chip = (label, val) => el('button', { class: 'chip', text: label, 'aria-pressed': String(albFilter === val), onclick: () => { albFilter = val; renderAlbums(); } });
+  chips.append(chip(`Toutes · ${nf(kept.length)}`, null));
+  [...counts.keys()].sort((a, b) => a.localeCompare(b, 'fr')).forEach(d => chips.append(chip(`${dirLabel(d)} · ${nf(counts.get(d))}`, d)));
+  const list = albFilter == null ? kept : kept.filter(r => dirOf(r.path) === albFilter);
+  fillGrid($('#alb-grid'), list, (r, t) => {
+    if (!canMove || isImp(r.path)) return;
+    sel.has(r.path) ? sel.delete(r.path) : sel.add(r.path);
+    t.setAttribute('aria-pressed', String(sel.has(r.path))); dock();
+  }, canMove);
+  dock();
+}
+function dock() {
+  $('#alb-dock').hidden = !sel.size;
+  $('#alb-sel').textContent = `${nf(sel.size)} ${pl(sel.size, 'photo sélectionnée', 'photos sélectionnées')}`;
+}
+$('#alb-clear').addEventListener('click', () => { sel.clear(); document.querySelectorAll('#alb-grid .tile[aria-pressed=true]').forEach(t => t.setAttribute('aria-pressed', 'false')); dock(); });
+const cleanName = s => s.replace(/[\/\\:*?"<>|]/g, ' ').replace(/^[.\s]+/, '').replace(/\s+/g, ' ').trim().slice(0, 60);
+const chooseFolder = () => modal((box, close) => {
+  const input = el('input', { type: 'text', placeholder: 'Nouveau dossier', maxlength: '60', 'aria-label': 'Nom du nouveau dossier' });
+  const create = () => { const n = cleanName(input.value); if (n) close({ path: n }); };
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') create(); });
+  box.append(el('h2', { text: 'Ranger dans…' }),
+    el('p', { text: 'La photo est déplacée dans le dossier choisi, sur ton appareil.' }),
+    el('div', { class: 'field' }, [input, el('button', { class: 'btn', text: 'Créer', onclick: create })]),
+    el('div', { class: 'list' }, ['', ...S.dirs].map(d => el('button', { text: dirLabel(d), onclick: () => close({ path: d }) }))));
+});
+async function freeName(dir, name) {
+  const dot = name.lastIndexOf('.'), base = dot > 0 ? name.slice(0, dot) : name, ext = dot > 0 ? name.slice(dot) : '';
+  for (let i = 1; i < 200; i++) {
+    const n = i === 1 ? name : `${base} (${i})${ext}`;
+    try { await dir.getFileHandle(n); } catch (e) { if (e && e.name === 'NotFoundError') return n; throw e; }
+  }
+  throw new Error('nom indisponible');
+}
+async function rekey(rec, newPath, newName) {
+  const old = rec.path;
+  const th = await DB.get('thumbs', old), fv = await DB.get('favs', old);
+  recs.delete(old); await DB.del('rec', old); await DB.del('thumbs', old);
+  rec.path = newPath; rec.name = newName; recs.set(newPath, rec); await DB.put('rec', rec);
+  if (th) await DB.put('thumbs', th, newPath);
+  if (fv) { await DB.del('favs', old); fv.path = newPath; fv.name = newName; await DB.put('favs', fv); }
+}
+async function moveSelected() {
+  if (!sel.size) return;
+  if (!root) { toast('Appuie d’abord sur Jouer puis sur + pour ouvrir ton dossier de photos.', 3600); return; }
+  const pickd = await chooseFolder(); if (!pickd) return;
+  if (!(await ensureAccess())) { toast('Accès au dossier non accordé.'); return; }
+  const destPath = pickd.path; let ok = 0, fail = 0, i = 0;
+  const list = [...sel].map(p => recs.get(p)).filter(r => r && !isImp(r.path) && dirOf(r.path) !== destPath);
+  undo.splice(0).forEach(u => drop(u.it));
+  try {
+    const dest = await resolveDir(destPath, true);
+    if (destPath && !S.dirs.includes(destPath)) { S.dirs.push(destPath); S.dirs.sort((a, b) => a.localeCompare(b, 'fr')); }
+    for (const rec of list) {
+      toast(`Rangement… ${++i} / ${list.length}`, 0);
+      try {
+        const { dir, name } = await locate(rec.path);
+        const fh = await dir.getFileHandle(name);
+        const newName = await freeName(dest, name);
+        let moved = false;
+        if (typeof fh.move === 'function') { try { await fh.move(dest, newName); moved = true; } catch (e) {} }
+        if (!moved) {                                 // copie, vérification, puis suppression de l'original
+          const f = await fh.getFile();
+          const nh = await dest.getFileHandle(newName, { create: true });
+          const w = await nh.createWritable(); await w.write(f); await w.close();
+          const chk = await (await dest.getFileHandle(newName)).getFile();
+          if (chk.size !== f.size) { await dest.removeEntry(newName).catch(() => {}); throw new Error('copie incomplète'); }
+          await dir.removeEntry(name);
+        }
+        await rekey(rec, (destPath ? destPath + '/' : '') + newName, newName);
+        ok++;
+      } catch (e) { console.error(e); fail++; }
+    }
+  } catch (e) { console.error(e); fail = list.length - ok; }
+  save();
+  toast(fail ? `${nf(ok)} ${pl(ok, 'photo rangée', 'photos rangées')}, ${nf(fail)} en échec.` : `${nf(ok)} ${pl(ok, 'photo rangée', 'photos rangées')} dans « ${dirLabel(destPath)} ».`, 3600);
+  albFilter = null; renderAlbums();
+}
+$('#alb-move').addEventListener('click', moveSelected);
+
+/* ============================================================
+   Corbeille
+   ============================================================ */
+function renderTrash() {
+  clearThumbs();
+  const list = [...recs.values()].filter(r => r.status === 'trash').sort((a, b) => b.at - a.at);
+  const fsList = list.filter(r => !isImp(r.path)), impList = list.filter(r => isImp(r.path));
+  const bytes = list.reduce((s, r) => s + (r.size || 0), 0);
+  $('#tr-empty').hidden = list.length > 0; $('#tr-note').hidden = !list.length; $('#tr-dock').hidden = !list.length;
+  $('#tr-count').textContent = list.length ? `${nf(list.length)} ${pl(list.length, 'photo')} · ${fmtSize(bytes)}` : '';
+  $('#tr-note').textContent = impList.length && !fsList.length
+    ? 'Ces photos sont encore dans ta galerie : un site ne peut pas les supprimer sur cet appareil. Supprime-les dans l’app Photos en t’aidant des vignettes, puis confirme ici. Touche une photo pour la garder finalement.'
+    : 'Ces photos sont encore sur ton appareil. Touche une photo pour la garder finalement. « Vider » les supprime pour de bon, sans passer par la corbeille du téléphone.';
+  $('#tr-info').textContent = list.length ? `${fmtSize(bytes)} à libérer` : '';
+  const eb = $('#tr-empty-btn'), mb = $('#tr-manual-btn');
+  eb.hidden = !fsList.length; eb.textContent = `Vider (${nf(fsList.length)})`;
+  mb.hidden = !impList.length; mb.textContent = `C’est fait, je les ai supprimées (${nf(impList.length)})`;
+  fillGrid($('#tr-grid'), list, async r => {
+    r.status = 'kept'; await DB.put('rec', r).catch(() => {});
+    toast('Photo gardée.'); renderTrash();
+  }, false);
+}
+async function forget(paths, count) {
+  paths.forEach(p => recs.delete(p));
+  await DB.delMany('rec', paths); await DB.delMany('thumbs', paths);
+  if (S.scanTotal != null) S.scanTotal = Math.max(0, S.scanTotal - count);
+  undo.splice(0).forEach(u => drop(u.it));
+  save();
+}
+$('#tr-empty-btn').addEventListener('click', async () => {
+  const list = [...recs.values()].filter(r => r.status === 'trash' && !isImp(r.path));
+  if (!list.length) return;
+  if (!root || !fsMode()) { toast('Appuie d’abord sur Jouer puis sur + pour ouvrir ton dossier de photos.', 3600); return; }
+  const ok = await confirmBox({ title: `Supprimer ${nf(list.length)} ${pl(list.length, 'photo')} ?`, text: 'Elles seront effacées de ton appareil pour de bon, sans passer par la corbeille du téléphone. Ce geste ne peut pas être annulé.', ok: 'Supprimer', danger: true });
+  if (!ok) return;
+  if (!(await ensureAccess())) { toast('Accès au dossier non accordé.'); return; }
+  const gone = []; let done = 0, fail = 0, i = 0;
+  for (const r of list) {
+    if (++i % 5 === 1) toast(`Suppression… ${i} / ${list.length}`, 0);
+    try { const { dir, name } = await locate(r.path); await dir.removeEntry(name); gone.push(r.path); done++; S.deleted++; S.freed += r.size || 0; }
+    catch (e) { if (e && e.name === 'NotFoundError') gone.push(r.path); else { console.error(e); fail++; } }
+  }
+  await forget(gone, done);
+  toast(fail ? `${nf(done)} ${pl(done, 'photo supprimée', 'photos supprimées')}, ${nf(fail)} n’ont pas pu l’être.` : `${nf(done)} ${pl(done, 'photo supprimée', 'photos supprimées')}.`, 3600);
+  renderTrash();
+});
+$('#tr-manual-btn').addEventListener('click', async () => {
+  const list = [...recs.values()].filter(r => r.status === 'trash' && isImp(r.path));
+  if (!list.length) return;
+  const ok = await confirmBox({ title: 'Tu les as supprimées ?', text: `Confirme seulement si ces ${nf(list.length)} ${pl(list.length, 'photo a', 'photos ont')} bien été ${pl(list.length, 'supprimée', 'supprimées')} dans l’app Photos : la liste sera effacée ici.`, ok: 'Oui, c’est fait' });
+  if (!ok) return;
+  S.deleted += list.length; S.freed += list.reduce((s, r) => s + (r.size || 0), 0);
+  await forget(list.map(r => r.path), list.length);
+  renderTrash();
+});
+
+/* ============================================================
+   Galerie d'art
+   ============================================================ */
+const galURLs = [];
+const FRAMES = ['f-or', '', 'f-noyer', 'f-blanc'];
+const hash = s => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h); };
+async function renderGallery() {
+  galURLs.splice(0).forEach(u => URL.revokeObjectURL(u));
+  let favs = []; try { favs = await DB.all('favs'); } catch (e) {}
+  favs.sort((a, b) => b.at - a.at);
+  const wall = $('#wall'); wall.replaceChildren();
+  $('#gal-empty').hidden = favs.length > 0; wall.hidden = !favs.length;
+  $('#gal-count').textContent = favs.length ? `${nf(favs.length)} ${pl(favs.length, 'œuvre')}` : '';
+  for (const f of favs) {
+    const u = URL.createObjectURL(f.blob); galURLs.push(u);
+    const cls = 'frame ' + FRAMES[hash(f.path) % FRAMES.length];
+    const label = f.date ? fmtShort.format(new Date(f.date)) : 'Sans date';
+    wall.append(el('button', { class: 'piece', 'aria-label': 'Voir la photo du ' + label, onclick: () => look(f, u, cls, label) }, [
+      el('span', { class: cls }, el('span', { class: 'mat' }, el('img', { src: u, alt: '', loading: 'lazy' }))),
+      el('span', { class: 'cartel', text: label })
+    ]));
+  }
+}
+const look = (f, u, cls, label) => modal((box, close) => {
+  box.append(el('div', { class: 'look' }, [
+    el('span', { class: cls }, el('span', { class: 'mat' }, el('img', { src: u, alt: 'Photo favorite' }))),
+    el('span', { class: 'cartel', text: label })
+  ]), el('div', { class: 'row' }, [
+    el('button', { class: 'btn line', text: 'Retirer des favoris', onclick: async () => {
+      await DB.del('favs', f.path).catch(() => {});
+      const r = recs.get(f.path); if (r) { r.fav = false; DB.put('rec', r).catch(() => {}); }
+      close(); renderGallery();
+    } }),
+    el('button', { class: 'btn', text: 'Fermer', onclick: () => close() })
+  ]));
+});
+
+/* ============================================================
+   Accueil
+   ============================================================ */
+function renderHome() {
+  const t = totals(), n = todayCount(), st = streak();
+  $('#goal-val').textContent = `${nf(n)} / ${nf(S.goal)}`;
+  $('#ring-fg').style.strokeDashoffset = String(163.4 * (1 - Math.min(1, n / S.goal)));
+  $('#streak-val').textContent = nf(st);
+  $('#streak-lbl').textContent = st > 1 ? 'jours de suite' : 'jour de suite';
+  $('#seen-val').textContent = t.total == null ? (t.seen ? nf(t.seen) : '—') : `${nf(t.seen)} sur ${nf(t.total)}`;
+  $('#seen-bar').style.width = t.total ? Math.min(100, 100 * t.seen / t.total) + '%' : '0%';
+  $('#del-val').textContent = nf(S.deleted);
+  $('#free-val').textContent = fmtSize(S.freed);
+  $('#trash-val').textContent = nf(t.trash);
+  const foot = $('#foot'); foot.replaceChildren();
+  if (fsMode() && root) foot.append(`Dossier : ${S.rootName || root.name} · `, el('button', { text: 'changer', onclick: changeFolder }));
+  else if (!fsMode()) foot.textContent = isIOS ? 'Sur iPhone : tri sur les photos que tu choisis, suppression dans l’app Photos.' : 'Version complète sur Android avec Chrome.';
+}
+async function changeFolder() {
+  const ok = await confirmBox({ title: 'Changer de dossier ?', text: 'La progression du dossier actuel sera remise à zéro et sa corbeille oubliée sans rien supprimer. Tes favoris restent accrochés dans la Galerie d’art.', ok: 'Choisir un dossier' });
+  if (!ok) return;
+  const h = await pickDir(); if (!h) return;
+  resetSession(); root = h; S.rootName = h.name;
+  try { await DB.put('kv', h, 'root'); } catch (e) {}
+  nav('game'); busy = true; try { await startScan(); } finally { busy = false; }
+}
+$('#goal-btn').addEventListener('click', async () => {
+  const g = await modal((box, close) => {
+    box.append(el('h2', { text: 'Objectif quotidien' }), el('p', { text: 'Combien de photos veux-tu trier chaque jour ?' }),
+      el('div', { class: 'list' }, [10, 20, 30, 50, 100].map(n => el('button', { text: `${n} photos par jour` + (n === S.goal ? '  ·  actuel' : ''), onclick: () => close(n) }))));
+  });
+  if (g) { S.goal = g; save(); renderHome(); }
+});
+
+/* ============================================================
+   Navigation
+   ============================================================ */
+let screen = 'home';
+const enter = {
+  home: renderHome,
+  game: () => { hud(); if (scanned && cur) { setStage('photo'); fit(); } else if (scanned && !busy) { busy = true; advance().finally(() => { busy = false; }); } else if (!scanned) setStage('plus'); },
+  gallery: renderGallery, albums: renderAlbums, trash: renderTrash
+};
+function nav(name, push = true) {
+  if (modalClose) modalClose(null);
+  document.querySelectorAll('.screen').forEach(s => { s.hidden = s.id !== name; });
+  screen = name; window.scrollTo(0, 0);
+  if (push && name !== 'home') { try { history.pushState({ s: name }, ''); } catch (e) {} }
+  enter[name]();
+}
+window.addEventListener('popstate', e => nav((e.state && e.state.s) || 'home', false));
+document.querySelectorAll('[data-back]').forEach(b => b.addEventListener('click', () => {
+  if (history.state && history.state.s) history.back(); else nav('home', false);
+}));
+$('#go-play').addEventListener('click', () => nav('game'));
+$('#go-gallery').addEventListener('click', () => nav('gallery'));
+$('#go-albums').addEventListener('click', () => nav('albums'));
+$('#go-trash').addEventListener('click', () => nav('trash'));
+$('#game-trash').addEventListener('click', () => nav('trash'));
+$('#done-trash').addEventListener('click', () => nav('trash'));
+
+/* ============================================================
+   Démarrage
+   ============================================================ */
+(async () => {
+  try {
+    const s = await DB.get('kv', 'state'); if (s) Object.assign(S, s);
+    (await DB.all('rec')).forEach(r => recs.set(r.path, r));
+    if (canFS) root = (await DB.get('kv', 'root')) || null;
+  } catch (e) { console.error(e); }
+  pruneDays();
+  applyAmb(S.amb);
+  try { history.replaceState(null, ''); } catch (e) {}
+  renderHome();
+})();
+
+})();
+</script>
+</body>
+</html>
